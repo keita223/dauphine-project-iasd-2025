@@ -10,20 +10,25 @@ from src.config import (
 
 def get_langfuse_handler():
     """
-    Crée et retourne un client LangFuse pour tracker les appels LLM.
-    
+    Crée et retourne un client LangFuse pour le monitoring.
+
     Returns:
-        Langfuse: Client LangFuse configuré
+        Langfuse: Client LangFuse configuré ou None si erreur
     """
     try:
-        langfuse_client = Langfuse(
+        # Vérifier que les clés existent
+        if not LANGFUSE_PUBLIC_KEY or not LANGFUSE_SECRET_KEY:
+            print("⚠️ Clés Langfuse manquantes dans .env")
+            return None
+
+        client = Langfuse(
             public_key=LANGFUSE_PUBLIC_KEY,
             secret_key=LANGFUSE_SECRET_KEY,
             host=LANGFUSE_HOST,
         )
         print("✅ LangFuse client initialisé avec succès")
-        return langfuse_client
-    
+        return client
+
     except Exception as e:
         print(f"⚠️ Erreur lors de l'initialisation de LangFuse: {e}")
         print("Le système continuera sans monitoring")
