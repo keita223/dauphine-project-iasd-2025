@@ -35,6 +35,37 @@ def get_langfuse_handler():
         return None
 
 
+def log_to_langfuse(langfuse_client, name: str, input_data: dict, output_data: dict, metadata: dict = None):
+    """
+    Enregistre une trace dans Langfuse de manière fiable.
+
+    Args:
+        langfuse_client: Client Langfuse
+        name: Nom de l'événement
+        input_data: Données d'entrée
+        output_data: Données de sortie
+        metadata: Métadonnées optionnelles
+    """
+    if not langfuse_client:
+        return
+
+    try:
+        # Créer une trace
+        trace = langfuse_client.trace(
+            name=name,
+            input=input_data,
+            output=output_data,
+            metadata=metadata or {}
+        )
+
+        # Forcer l'envoi immédiat
+        langfuse_client.flush()
+
+    except Exception as e:
+        # Ignorer silencieusement les erreurs de monitoring
+        pass
+
+
 # Pour tester
 if __name__ == "__main__":
     handler = get_langfuse_handler()
