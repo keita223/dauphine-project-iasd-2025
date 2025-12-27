@@ -13,15 +13,104 @@ import pandas as pd
 import time
 from datetime import datetime
 from src.main import answer
+import google.generativeai as genai
+import os
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement
+load_dotenv()
+
+# Configurer Gemini pour l'évaluation
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+
+def llm_as_judge(question: str, expected_answer: str, agent_answer: str) -> tuple[int, str]:
+    """Évalue la qualité de la réponse de l'agent en utilisant Gemini comme juge.
+
+    Cette fonction utilise Google Gemini pour comparer la réponse générée par l'agent
+    avec la réponse attendue, en tenant compte de la question posée.
+
+    Args:
+        question: La question du client
+        expected_answer: La réponse attendue (référence)
+        agent_answer: La réponse générée par l'agent
+
+    Returns:
+        tuple[int, str]: Score de 0 à 10 et justification détaillée
+    """
+
+    # Validation basique
+    if not agent_answer or len(agent_answer.strip()) < 10:
+        return 0, "Réponse trop courte ou vide"
+
+    # Prompt pour Gemini en tant que juge
+    judge_prompt = f"""Tu es un évaluateur expert pour un système de support client de TelecomPlus.
+
+**Question du client:**
+{question}
+
+**Réponse attendue (référence):**
+{expected_answer}
+
+**Réponse générée par l'agent:**
+{agent_answer}
+
+**Critères d'évaluation:**
+1. **Exactitude** (40%): La réponse contient-elle les informations correctes et factuelles?
+2. **Complétude** (30%): Tous les éléments de la réponse attendue sont-ils couverts?
+3. **Pertinence** (20%): La réponse répond-elle précisément à la question posée?
+4. **Clarté** (10%): La réponse est-elle claire, bien structurée et compréhensible?
+
+**Instructions:**
+- Compare la réponse générée avec la réponse attendue
+- Évalue selon les 4 critères ci-dessus
+- Donne un score de 0 à 10 (10 = parfait, 0 = complètement incorrect)
+- Fournis une justification courte et précise
+
+**Format de réponse obligatoire:**
+SCORE: [nombre entre 0 et 10]
+JUSTIFICATION: [explication en 1-2 phrases]"""
+
+    try:
+        # Appeler Gemini pour l'évaluation
+        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        response = model.generate_content(judge_prompt)
+        evaluation_text = response.text.strip()
+
+        # Parser la réponse
+        score = 0
+        justification = "Erreur de parsing"
+
+        lines = evaluation_text.split('\n')
+        for line in lines:
+            if line.startswith("SCORE:"):
+                score_text = line.replace("SCORE:", "").strip()
+                # Extraire le nombre (gérer "8/10" ou "8")
+                score_text = score_text.split('/')[0].strip()
+                try:
+                    score = int(float(score_text))
+                    score = max(0, min(10, score))  # Clamp entre 0 et 10
+                except ValueError:
+                    score = 0
+            elif line.startswith("JUSTIFICATION:"):
+                justification = line.replace("JUSTIFICATION:", "").strip()
+
+        return score, justification
+
+    except Exception as e:
+        print(f"[WARN] Erreur lors de l'évaluation LLM-as-judge: {e}")
+        # Fallback: évaluation basique
+        if "erreur" in agent_answer.lower():
+            return 0, "Réponse contient une erreur"
+        return 5, f"Évaluation automatique échouée: {str(e)}"
 
 
 def evaluate_response(question: str, expected_answer: str, agent_answer: str) -> int:
     """Evaluate the relevance of the agent's answer.
 
-    Implémentation d'une logique d'évaluation basique.
-    
-    TODO (amélioration future): Utiliser un LLM-as-a-judge pour une évaluation plus précise
-    
+    DEPRECATED: Cette fonction est conservée pour compatibilité mais
+    utilise maintenant llm_as_judge() en interne.
+
     Args:
         question: The customer question
         expected_answer: The expected answer from the dataset
@@ -30,16 +119,9 @@ def evaluate_response(question: str, expected_answer: str, agent_answer: str) ->
     Returns:
         Score: 1 if relevant, 0 if not
     """
-    # Évaluation basique (peut être améliorée avec LLM-as-judge)
-    if not agent_answer or len(agent_answer.strip()) < 10:
-        return 0
-    
-    # Si la réponse contient "erreur" ou est trop courte
-    if "erreur" in agent_answer.lower():
-        return 0
-    
-    # Sinon, considérer comme valide
-    return 1
+    score, _ = llm_as_judge(question, expected_answer, agent_answer)
+    # Convertir le score 0-10 en 0-1 pour compatibilité
+    return 1 if score >= 5 else 0
 
 
 def run_evaluation():
@@ -67,22 +149,23 @@ def run_evaluation():
 
         # Mesurer le temps de réponse
         start_time = time.time()
-        
+
         # Get agent's answer (appel de notre système multi-agent)
         agent_answer = answer(question)
-        
+
         end_time = time.time()
         response_time = round(end_time - start_time, 2)
         total_time += response_time
-        
+
         print(f"Agent: {agent_answer}")
         print(f"Time: {response_time}s")
 
-        # Evaluate the response
-        score = evaluate_response(question, expected_answer, agent_answer)
-        total_score += score
+        # Évaluation avec LLM-as-a-judge (score de 0 à 10)
+        llm_score, justification = llm_as_judge(question, expected_answer, agent_answer)
+        total_score += llm_score
 
-        print(f"Score: {score}/1")
+        print(f"Score LLM-as-judge: {llm_score}/10")
+        print(f"Justification: {justification}")
 
         # Store results
         results.append({
@@ -90,35 +173,41 @@ def run_evaluation():
             "Expected Answer": expected_answer,
             "Agent Answer": agent_answer,
             "Difficulty": difficulty,
-            "Score": score,
+            "LLM Score (0-10)": llm_score,
+            "Justification": justification,
             "Response Time (s)": response_time
         })
 
         print("-" * 80)
 
     # Calculate final metrics
-    accuracy = total_score / len(df)
+    max_possible_score = len(df) * 10  # Score max = 10 par question
+    avg_score = total_score / len(df) if len(df) > 0 else 0
+    accuracy_percentage = (total_score / max_possible_score) * 100 if max_possible_score > 0 else 0
     avg_time = total_time / len(df) if len(df) > 0 else 0
-    
+
     print("\n" + "=" * 80)
-    print("EVALUATION RESULTS")
+    print("EVALUATION RESULTS (LLM-as-a-Judge)")
     print("=" * 80)
     print(f"Total questions: {len(df)}")
-    print(f"Total score: {total_score}/{len(df)}")
-    print(f"Accuracy: {accuracy:.2%}")
+    print(f"Total score: {total_score}/{max_possible_score}")
+    print(f"Average score per question: {avg_score:.2f}/10")
+    print(f"Overall accuracy: {accuracy_percentage:.1f}%")
     print(f"Average response time: {avg_time:.2f}s")
     print(f"Total time: {total_time:.2f}s")
-    
+
     # Stats par difficulté
     print("\nResults by difficulty:")
     results_df = pd.DataFrame(results)
     for diff in ["Facile", "Moyen", "Difficile"]:
         diff_results = results_df[results_df["Difficulty"] == diff]
         if len(diff_results) > 0:
-            diff_score = diff_results["Score"].sum()
-            diff_total = len(diff_results)
-            diff_accuracy = (diff_score / diff_total) if diff_total > 0 else 0
-            print(f"  {diff}: {diff_score}/{diff_total} ({diff_accuracy:.1%})")
+            diff_score = diff_results["LLM Score (0-10)"].sum()
+            diff_count = len(diff_results)
+            diff_max = diff_count * 10
+            diff_avg = diff_score / diff_count
+            diff_accuracy = (diff_score / diff_max) * 100 if diff_max > 0 else 0
+            print(f"  {diff}: {diff_score}/{diff_max} (avg: {diff_avg:.1f}/10, accuracy: {diff_accuracy:.1f}%)")
 
     # Save results to Excel
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

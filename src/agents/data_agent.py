@@ -5,7 +5,7 @@ import pandas as pd
 from langchain_google_genai import ChatGoogleGenerativeAI
 from src.tools.excel_tools import load_excel_files
 from src.config import GOOGLE_API_KEY, MODEL_NAME
-from src.utils.monitoring import get_langfuse_handler
+from src.utils.monitoring import get_langfuse_handler, log_to_langfuse
 
 
 def analyze_and_execute_query(question: str, dataframes: Dict[str, pd.DataFrame]) -> str:
@@ -94,30 +94,24 @@ def query_data(question: str) -> str:
         answer = analyze_and_execute_query(question, dataframes)
 
         # Logger dans Langfuse si disponible
-        if langfuse:
-            try:
-                langfuse.span(
-                    name="data_query",
-                    input={"question": question},
-                    output={"answer": answer[:100]},
-                    metadata={"agent": "data_agent"}
-                )
-            except:
-                pass  # Ignore si erreur de logging
+        log_to_langfuse(
+            langfuse,
+            name="data_query",
+            input_data={"question": question},
+            output_data={"answer": answer[:100]},
+            metadata={"agent": "data_agent"}
+        )
 
         return answer
     except Exception as e:
         # Logger l'erreur dans Langfuse si disponible
-        if langfuse:
-            try:
-                langfuse.span(
-                    name="data_query_error",
-                    input={"question": question},
-                    output={"error": str(e)},
-                    metadata={"agent": "data_agent", "status": "error"}
-                )
-            except:
-                pass
+        log_to_langfuse(
+            langfuse,
+            name="data_query_error",
+            input_data={"question": question},
+            output_data={"error": str(e)},
+            metadata={"agent": "data_agent", "status": "error"}
+        )
 
         return f"❌ Erreur lors de la recherche : {str(e)}"
 

@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from src.config import GOOGLE_API_KEY, MODEL_NAME, FAISS_INDEX_PATH
-from src.utils.monitoring import get_langfuse_handler
+from src.utils.monitoring import get_langfuse_handler, log_to_langfuse
 
 
 def load_faiss_index():
@@ -141,16 +141,13 @@ def query_documents(question: str) -> dict:
             print(f"   {i}. {Path(source).name}")
 
         # Logger dans Langfuse si disponible
-        if langfuse:
-            try:
-                langfuse.span(
-                    name="rag_query",
-                    input={"question": question},
-                    output={"answer": answer[:100], "num_sources": len(source_docs)},
-                    metadata={"agent": "rag_agent"}
-                )
-            except:
-                pass  # Ignore si erreur de logging
+        log_to_langfuse(
+            langfuse,
+            name="rag_query",
+            input_data={"question": question},
+            output_data={"answer": answer[:100], "num_sources": len(source_docs)},
+            metadata={"agent": "rag_agent"}
+        )
 
         return {
             "answer": answer,
@@ -161,16 +158,13 @@ def query_documents(question: str) -> dict:
         print(f"❌ Erreur lors de la recherche : {e}")
 
         # Logger l'erreur dans Langfuse si disponible
-        if langfuse:
-            try:
-                langfuse.span(
-                    name="rag_query_error",
-                    input={"question": question},
-                    output={"error": str(e)},
-                    metadata={"agent": "rag_agent", "status": "error"}
-                )
-            except:
-                pass
+        log_to_langfuse(
+            langfuse,
+            name="rag_query_error",
+            input_data={"question": question},
+            output_data={"error": str(e)},
+            metadata={"agent": "rag_agent", "status": "error"}
+        )
 
         return {
             "answer": f"❌ Erreur : {str(e)}",

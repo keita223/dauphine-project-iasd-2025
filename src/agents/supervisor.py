@@ -2,7 +2,7 @@
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from src.config import GOOGLE_API_KEY, MODEL_NAME
-from src.utils.monitoring import get_langfuse_handler
+from src.utils.monitoring import get_langfuse_handler, log_to_langfuse
 
 
 def analyze_question(question: str) -> str:
@@ -71,16 +71,13 @@ Réponds UNIQUEMENT par "rag" ou "data" (un seul mot, pas d'explication).
         print(f"✅ Décision : Agent {decision.upper()}")
 
         # Logger dans Langfuse si disponible
-        if langfuse:
-            try:
-                langfuse.span(
-                    name="supervisor_decision",
-                    input={"question": question},
-                    output={"decision": decision},
-                    metadata={"agent": "supervisor"}
-                )
-            except:
-                pass  # Ignore si erreur de logging
+        log_to_langfuse(
+            langfuse,
+            name="supervisor_decision",
+            input_data={"question": question},
+            output_data={"decision": decision},
+            metadata={"agent": "supervisor"}
+        )
 
         return decision
 
@@ -89,16 +86,13 @@ Réponds UNIQUEMENT par "rag" ou "data" (un seul mot, pas d'explication).
         print("⚠️ Fallback sur 'rag'")
 
         # Logger l'erreur dans Langfuse si disponible
-        if langfuse:
-            try:
-                langfuse.span(
-                    name="supervisor_error",
-                    input={"question": question},
-                    output={"error": str(e), "fallback": "rag"},
-                    metadata={"agent": "supervisor", "status": "error"}
-                )
-            except:
-                pass
+        log_to_langfuse(
+            langfuse,
+            name="supervisor_error",
+            input_data={"question": question},
+            output_data={"error": str(e), "fallback": "rag"},
+            metadata={"agent": "supervisor", "status": "error"}
+        )
 
         return "rag"  # Fallback par défaut
 
