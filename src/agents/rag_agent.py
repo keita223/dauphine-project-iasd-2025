@@ -66,23 +66,29 @@ def create_rag_chain(vectorstore):
         temperature=0
     )
 
-    # Template de prompt pour le RAG
+    # Template de prompt pour le RAG (optimisé pour meilleure extraction)
     template = """Tu es un assistant expert pour TelecomPlus, spécialisé dans les FAQ et la documentation.
 
-Utilise UNIQUEMENT les informations suivantes pour répondre à la question.
-Si la réponse n'est pas dans le contexte, dis "Je n'ai pas trouvé cette information dans la documentation."
+Ta mission : extraire et synthétiser les informations pertinentes depuis le contexte fourni.
+
+INSTRUCTIONS STRICTES :
+1. Lis ATTENTIVEMENT tout le contexte fourni
+2. Cherche TOUTES les informations liées à la question (même partielles)
+3. Synthétise les informations trouvées de manière claire et précise
+4. Si plusieurs documents contiennent des infos complémentaires, COMBINE-les
+5. SEULEMENT si AUCUNE information n'est trouvée dans le contexte, réponds "Je n'ai pas trouvé cette information dans la documentation."
 
 Contexte extrait de la documentation :
 {context}
 
 Question : {question}
 
-Réponse détaillée en français :"""
+Réponse détaillée en français (extraite du contexte ci-dessus) :"""
 
     prompt = ChatPromptTemplate.from_template(template)
 
-    # Créer le retriever
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    # Créer le retriever avec k augmenté pour meilleur recall
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 7})
 
     # Créer la chaîne RAG avec LCEL (LangChain Expression Language)
     def format_docs(docs):

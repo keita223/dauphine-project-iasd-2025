@@ -12,23 +12,28 @@ from src.config import PDF_DIR, FAISS_INDEX_PATH
 def load_pdfs() -> List:
     """
     Charge tous les PDFs depuis le dossier PDF_DIR.
-    
+
     Returns:
         List: Liste de documents chargés
     """
     print(f"📂 Chargement des PDFs depuis: {PDF_DIR}")
-    
+
     documents = []
     pdf_files = list(PDF_DIR.glob("*.pdf"))
-    
+
     print(f"📄 {len(pdf_files)} fichiers PDF trouvés")
-    
+
     for pdf_file in pdf_files:
         print(f"   → Chargement de {pdf_file.name}")
-        loader = PyPDFLoader(str(pdf_file))
-        docs = loader.load()
-        documents.extend(docs)
-    
+
+        try:
+            loader = PyPDFLoader(str(pdf_file))
+            pdf_docs = loader.load()
+            documents.extend(pdf_docs)
+        except Exception as e:
+            print(f"❌ Erreur lors du chargement de {pdf_file.name}: {e}")
+            continue
+
     print(f"✅ {len(documents)} pages chargées au total")
     return documents
 

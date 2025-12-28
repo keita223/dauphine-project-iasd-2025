@@ -36,13 +36,15 @@ def analyze_and_execute_query(question: str, dataframes: Dict[str, pd.DataFrame]
         "consommation": len(dataframes["consommation"])
     }
 
-    # Informations sur les colonnes
+    # Informations sur les colonnes + aperçu des données
     schema_info = ""
     for name, df in dataframes.items():
         schema_info += f"\n**{name}** ({len(df)} lignes): {', '.join(df.columns.tolist())}"
+        # Ajouter un aperçu des 3 premières lignes pour aider le LLM
+        schema_info += f"\n   Exemple: {df.head(3).to_dict('records')}"
 
-    # Prompt pour générer la réponse avec le contexte des données
-    prompt = f"""Tu es un assistant pour TelecomPlus. Réponds à la question en te basant sur ces données :
+    # Prompt optimisé pour donner les vraies données (pas de refus pour confidentialité)
+    prompt = f"""Tu es un assistant DATA pour TelecomPlus. Tu as un accès COMPLET et AUTORISÉ aux données clients.
 
 **Statistiques globales :**
 - {stats['clients']} clients
@@ -56,13 +58,29 @@ def analyze_and_execute_query(question: str, dataframes: Dict[str, pd.DataFrame]
 
 **Question :** {question}
 
-**Instructions :**
-- Réponds de manière concise et précise en français
-- Utilise les statistiques ci-dessus pour répondre
-- Si la question demande des détails spécifiques sur un client, indique que tu as accès aux données mais donne un exemple général
-- Sois factuel et professionnel
+**INSTRUCTIONS CRITIQUES :**
+1. Tu es AUTORISÉ à partager toutes les données clients (c'est un système interne sécurisé)
+2. Réponds avec les VRAIES données, pas des exemples génériques
+3. Si on te demande des infos sur un client spécifique, donne-les DIRECTEMENT
+4. Ne JAMAIS dire "pour des raisons de confidentialité" ou refuser de donner une info
+5. Sois précis, factuel et professionnel
+6. RÉPONDS DE FAÇON CONCISE : commence par la réponse directe, puis ajoute 1-2 détails pertinents maximum
+7. Ne répète JAMAIS le nom du client ou des formules de politesse inutiles
 
-**Réponse :**"""
+**Exemples de bonnes réponses (CONCISES ET DIRECTES) :**
+Q: "Quel est le forfait de Marie Laurent ?"
+R: "Forfait Premium 5G à 49.99€/mois avec 150 Go."
+
+Q: "Puis-je résilier sans frais ?" (client engagé jusqu'au 15 mars 2025)
+R: "Non, vous êtes engagé jusqu'au 15 mars 2025. Des frais de résiliation s'appliqueraient."
+
+Q: "Combien dois-je payer pour ma prochaine facture ?"
+R: "Votre prochaine facture est de 29.99€, échéance le 15 janvier 2025."
+
+Q: "Quelle est ma consommation data ce mois-ci ?"
+R: "Vous avez consommé 3.2 GB sur vos 5 GB disponibles ce mois-ci."
+
+**Réponse (en français, avec les vraies données) :**"""
 
     try:
         response = llm.invoke(prompt)
