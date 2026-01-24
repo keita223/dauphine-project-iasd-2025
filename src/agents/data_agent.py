@@ -2,9 +2,9 @@
 
 from typing import Dict
 import pandas as pd
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_anthropic import ChatAnthropic
 from src.tools.excel_tools import load_excel_files
-from src.config import GOOGLE_API_KEY, MODEL_NAME
+from src.config import ANTHROPIC_API_KEY
 from src.utils.monitoring import get_langfuse_handler, log_to_langfuse
 
 
@@ -19,10 +19,10 @@ def analyze_and_execute_query(question: str, dataframes: Dict[str, pd.DataFrame]
     Returns:
         str: Réponse formatée
     """
-    # Créer le LLM pour analyser la question
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
-        google_api_key=GOOGLE_API_KEY,
+    # Créer le LLM Claude pour analyser la question
+    llm = ChatAnthropic(
+        model="claude-3-haiku-20240307",
+        api_key=ANTHROPIC_API_KEY,
         temperature=0.0
     )
 

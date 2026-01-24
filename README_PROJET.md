@@ -38,11 +38,12 @@ Développer un système multi-agent intelligent pour le support client de **Tele
 
 ### Technologies Principales
 
-- **LLM :** Google Gemini 2.0-flash
+- **LLM :** Anthropic Claude 3 Haiku (claude-3-haiku-20240307)
+- **LLM-as-a-Judge :** Claude 3 Haiku pour l'évaluation automatique
 - **Framework :** LangChain + LangGraph
 - **Embeddings :** HuggingFace (`paraphrase-MiniLM-L3-v2`)
 - **Vector Store :** FAISS (local)
-- **Monitoring :** Langfuse
+- **Monitoring :** Langfuse (tracing complet)
 - **Interface :** Streamlit
 
 ---
@@ -127,17 +128,17 @@ Développer un système multi-agent intelligent pour le support client de **Tele
 - Version 1 : `create_pandas_dataframe_agent()` → ❌ Erreurs de parsing
 - Version 2 : Requêtes LLM directes avec stats → ✅ Fonctionne
 
-### 4. Google Gemini 2.0-flash
+### 4. Anthropic Claude 3 Haiku
 
 **Pourquoi ?**
-- **Gratuit** : 1500 requêtes/jour
 - **Rapide** : ~8s par réponse en moyenne
-- **Multilingue** : Supporte français nativement
-- **Disponible** : Via API simple
+- **Précis** : Excellente compréhension du français
+- **Économique** : Modèle Haiku peu coûteux
+- **Cohérent** : Réponses bien structurées
 
-**Alternative considérée :** OpenAI GPT-4
-- ❌ Payant dès la première requête
-- ✅ Gemini suffisant pour le use case
+**Alternative considérée :** Google Gemini
+- ✅ Gratuit mais moins précis pour certaines tâches
+- ✅ Claude offre de meilleurs résultats d'évaluation
 
 ### 5. Monitoring avec Langfuse
 
@@ -149,8 +150,9 @@ Développer un système multi-agent intelligent pour le support client de **Tele
 
 **Implémentation :**
 - Client Langfuse initialisé dans `monitoring.py`
-- Logging via `langfuse.span()` dans chaque agent
+- Logging via `langfuse.start_span()` dans chaque agent
 - Fonction `log_to_langfuse()` pour centraliser
+- Évaluations LLM-as-a-Judge tracées dans `evaluate.py`
 
 ### 6. Gestion de la Confidentialité
 
@@ -206,17 +208,17 @@ pip install -r requirements.txt
 Créer un fichier `.env` à la racine :
 
 ```bash
-# Google Gemini API
-GOOGLE_API_KEY=votre_clé_google_ici
+# Anthropic Claude API (requis)
+ANTHROPIC_API_KEY=sk-ant-...
 
-# Langfuse (optionnel)
+# Langfuse (optionnel, pour monitoring)
 LANGFUSE_PUBLIC_KEY=pk-...
 LANGFUSE_SECRET_KEY=sk-...
 LANGFUSE_BASE_URL=https://cloud.langfuse.com
 ```
 
-**Obtenir une clé Google AI Studio :**
-1. Aller sur https://aistudio.google.com/app/apikey
+**Obtenir une clé Anthropic :**
+1. Aller sur https://console.anthropic.com/
 2. Créer une API key
 3. Copier dans `.env`
 
@@ -279,7 +281,7 @@ python -m src.agents.data_agent
 python -m src.agents.supervisor
 ```
 
-### Lancer l'Évaluation
+### Lancer l'Évaluation (LLM-as-a-Judge)
 
 ```bash
 python evaluate.py
@@ -288,32 +290,35 @@ python evaluate.py
 Résultat attendu :
 ```
 Total questions: 25
-Total score: 25/25
-Accuracy: 100.00%
-Average response time: 8.24s
+Total score: 211/250
+Average score per question: 8.44/10
+Overall accuracy: 84.4%
+Average response time: ~8s
 ```
+
+**Note :** L'évaluation utilise Claude comme juge (LLM-as-a-Judge) pour noter chaque réponse de 0 à 10.
 
 ---
 
 ## 📊 Résultats d'Évaluation
 
-### Performance Globale
+### Performance Globale (LLM-as-a-Judge)
 
 | Métrique | Résultat |
 |----------|----------|
-| **Score total** | 25/25 (100%) |
-| **Temps moyen** | 8.24 secondes |
-| **Temps total** | 3min 26s |
+| **Score total** | 211/250 (84.4%) |
+| **Score moyen** | 8.44/10 par question |
+| **Temps moyen** | ~8 secondes |
 | **Questions testées** | 25 |
+| **Méthode d'évaluation** | LLM-as-a-Judge (Claude) |
 
 ### Résultats par Difficulté
 
-| Difficulté | Score | Pourcentage |
-|------------|-------|-------------|
-| Facile | 7/7 | 100% |
-| Moyen | 11/11 | 100% |
-| Difficile | 3/3 | 100% |
-| Très Difficile | 4/4 | 100% |
+| Difficulté | Score | Moyenne | Pourcentage |
+|------------|-------|---------|-------------|
+| Facile | 63/70 | 9.0/10 | 90.0% |
+| Moyen | 94/110 | 8.5/10 | 85.5% |
+| Difficile | 25/30 | 8.3/10 | 83.3% |
 
 ### Exemples de Réponses Réussies
 
@@ -351,29 +356,25 @@ Average response time: 8.24s
 
 ### Limitations Connues
 
-1. **Langue mixte dans les PDFs**
+1. **Extraction des tableaux PDF**
+   - PyPDFLoader n'extrait pas bien les tableaux (ex: grille tarifaire)
+   - Certaines questions sur les prix ne trouvent pas l'information
+   - **Solution** : Utiliser pdfplumber ou pymupdf pour meilleure extraction
+
+2. **Langue mixte dans les PDFs**
    - Certains PDFs contiennent du texte en anglais
    - Les embeddings peuvent avoir du mal à matcher français ↔ anglais
    - **Solution** : Traduire les PDFs ou utiliser des embeddings multilingues
 
-2. **Pas d'authentification**
+3. **Pas d'authentification**
    - Le Data Agent ne peut pas donner de données personnelles
    - **Solution production** : Ajouter OAuth2/JWT pour identifier l'utilisateur
 
-3. **Quota API limité**
-   - Google Gemini free tier : 1500 req/jour
-   - **Solution** : Passer à l'API payante ou utiliser un autre provider
-
-4. **Monitoring Langfuse pas visible**
-   - Les traces ne s'affichent pas dans l'UI Langfuse
-   - Le code de monitoring est présent mais nécessite debug
-   - **Impact** : Faible, le système fonctionne sans
-
 ### Améliorations Futures
 
-1. **LLM-as-a-Judge pour l'évaluation**
-   - Actuellement : Évaluation basique (0/1)
-   - Amélioration : Utiliser un LLM pour noter les réponses (0-10)
+1. ~~**LLM-as-a-Judge pour l'évaluation**~~ ✅ **IMPLÉMENTÉ**
+   - Utilise Claude 3 Haiku pour noter les réponses de 0 à 10
+   - Critères : Exactitude (40%), Complétude (30%), Pertinence (20%), Clarté (10%)
 
 2. **Mémoire conversationnelle**
    - Ajouter un historique des échanges
@@ -445,7 +446,7 @@ dauphine-project-iasd-2025/
 | `src/agents/data_agent.py` | Interroge les données Excel |
 | `src/tools/pdf_tools.py` | Indexation FAISS des PDFs |
 | `src/utils/monitoring.py` | Monitoring Langfuse |
-| `evaluate.py` | Évaluation automatique du système |
+| `evaluate.py` | Évaluation LLM-as-a-Judge avec Claude |
 
 ---
 
@@ -458,8 +459,9 @@ dauphine-project-iasd-2025/
 - ✅ Vector stores (FAISS)
 - ✅ Embeddings locaux (HuggingFace)
 - ✅ Prompt engineering
-- ✅ LLM orchestration
-- ✅ Monitoring et observabilité
+- ✅ LLM orchestration (Claude API)
+- ✅ LLM-as-a-Judge (évaluation automatique)
+- ✅ Monitoring Langfuse (tracing complet)
 - ✅ Gestion de la confidentialité
 
 ### Pratiques de Développement

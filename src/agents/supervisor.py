@@ -1,7 +1,7 @@
 """Agent superviseur qui décide quel agent appeler."""
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from src.config import GOOGLE_API_KEY, MODEL_NAME
+from langchain_anthropic import ChatAnthropic
+from src.config import ANTHROPIC_API_KEY
 from src.utils.monitoring import get_langfuse_handler, log_to_langfuse
 
 
@@ -20,10 +20,10 @@ def analyze_question(question: str) -> str:
     # Initialiser Langfuse pour le monitoring
     langfuse = get_langfuse_handler()
 
-    # Créer le LLM
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
-        google_api_key=GOOGLE_API_KEY,
+    # Créer le LLM Claude
+    llm = ChatAnthropic(
+        model="claude-3-haiku-20240307",
+        api_key=ANTHROPIC_API_KEY,
         temperature=0
     )
 

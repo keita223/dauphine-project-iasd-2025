@@ -1,13 +1,13 @@
 """Agent RAG pour interroger les documents PDF avec FAISS."""
 
 from pathlib import Path
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_anthropic import ChatAnthropic
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from src.config import GOOGLE_API_KEY, MODEL_NAME, FAISS_INDEX_PATH
+from src.config import ANTHROPIC_API_KEY, FAISS_INDEX_PATH
 from src.utils.monitoring import get_langfuse_handler, log_to_langfuse
 
 
@@ -59,31 +59,38 @@ def create_rag_chain(vectorstore):
     """
     print("🔗 Création de la chaîne RAG...")
 
-    # Créer le LLM
-    llm = ChatGoogleGenerativeAI(
-        model=MODEL_NAME,
-        google_api_key=GOOGLE_API_KEY,
+    # Créer le LLM Claude
+    llm = ChatAnthropic(
+        model="claude-3-haiku-20240307",
+        api_key=ANTHROPIC_API_KEY,
         temperature=0
     )
 
-    # Template de prompt pour le RAG (optimisé pour meilleure extraction)
-    template = """Tu es un assistant expert pour TelecomPlus, spécialisé dans les FAQ et la documentation.
+    # Template de prompt pour le RAG (optimisé pour réponses directes)
+    template = """Tu es un conseiller client TelecomPlus. Réponds directement à la question du client.
 
-Ta mission : extraire et synthétiser les informations pertinentes depuis le contexte fourni.
+RÈGLES STRICTES :
+1. Réponds DIRECTEMENT sans introduction ("Voici", "Selon le contexte", etc.)
+2. NE MENTIONNE JAMAIS "le contexte", "la documentation", "Q30", "FAQ"
+3. Parle comme si tu connaissais naturellement l'information
+4. Sois concis et professionnel
+5. Si l'info n'existe pas, dis simplement "Je n'ai pas cette information."
 
-INSTRUCTIONS STRICTES :
-1. Lis ATTENTIVEMENT tout le contexte fourni
-2. Cherche TOUTES les informations liées à la question (même partielles)
-3. Synthétise les informations trouvées de manière claire et précise
-4. Si plusieurs documents contiennent des infos complémentaires, COMBINE-les
-5. SEULEMENT si AUCUNE information n'est trouvée dans le contexte, réponds "Je n'ai pas trouvé cette information dans la documentation."
+EXEMPLES DE BONNES RÉPONSES :
+- "Vous pouvez consulter vos factures dans votre espace client, section 'Mes factures'."
+- "La résiliation est gratuite hors engagement. Si vous êtes engagé, des frais peuvent s'appliquer."
 
-Contexte extrait de la documentation :
+EXEMPLES DE MAUVAISES RÉPONSES (À ÉVITER) :
+- "Voici les informations pertinentes..." ❌
+- "Selon le contexte fourni..." ❌
+- "Q30. Comment consulter..." ❌
+
+Contexte :
 {context}
 
 Question : {question}
 
-Réponse détaillée en français (extraite du contexte ci-dessus) :"""
+Réponse :"""
 
     prompt = ChatPromptTemplate.from_template(template)
 

@@ -13,21 +13,25 @@ import pandas as pd
 import time
 from datetime import datetime
 from src.main import answer
-import google.generativeai as genai
+import anthropic
 import os
 from dotenv import load_dotenv
+from src.utils.monitoring import get_langfuse_handler
 
 # Charger les variables d'environnement
 load_dotenv()
 
-# Configurer Gemini pour l'évaluation
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Configurer Claude pour l'évaluation
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+# Initialiser Langfuse pour le monitoring des évaluations
+langfuse = get_langfuse_handler()
 
 
 def llm_as_judge(question: str, expected_answer: str, agent_answer: str) -> tuple[int, str]:
-    """Évalue la qualité de la réponse de l'agent en utilisant Gemini comme juge.
+    """Évalue la qualité de la réponse de l'agent en utilisant Claude comme juge.
 
-    Cette fonction utilise Google Gemini pour comparer la réponse générée par l'agent
+    Cette fonction utilise Claude pour comparer la réponse générée par l'agent
     avec la réponse attendue, en tenant compte de la question posée.
 
     Args:
@@ -43,7 +47,7 @@ def llm_as_judge(question: str, expected_answer: str, agent_answer: str) -> tupl
     if not agent_answer or len(agent_answer.strip()) < 10:
         return 0, "Réponse trop courte ou vide"
 
-    # Prompt pour Gemini en tant que juge
+    # Prompt pour Claude en tant que juge
     judge_prompt = f"""Tu es un évaluateur expert pour un système de support client de TelecomPlus.
 
 **Question du client:**
@@ -72,10 +76,13 @@ SCORE: [nombre entre 0 et 10]
 JUSTIFICATION: [explication en 1-2 phrases]"""
 
     try:
-        # Appeler Gemini pour l'évaluation
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
-        response = model.generate_content(judge_prompt)
-        evaluation_text = response.text.strip()
+        # Appeler Claude pour l'évaluation
+        response = client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=200,
+            messages=[{"role": "user", "content": judge_prompt}]
+        )
+        evaluation_text = response.content[0].text.strip()
 
         # Parser la réponse
         score = 0
@@ -94,6 +101,23 @@ JUSTIFICATION: [explication en 1-2 phrases]"""
                     score = 0
             elif line.startswith("JUSTIFICATION:"):
                 justification = line.replace("JUSTIFICATION:", "").strip()
+
+        # Logger l'évaluation dans Langfuse
+        if langfuse:
+            try:
+                # Créer une span pour l'évaluation (comme dans monitoring.py)
+                span = langfuse.start_span(
+                    name="llm_as_judge_evaluation",
+                    input={"question": question, "expected": expected_answer[:200], "agent_answer": agent_answer[:200]},
+                    metadata={"score": score, "model": "claude-3-haiku-20240307"}
+                )
+                span.update(output={"score": score, "justification": justification})
+                span.end()
+
+                langfuse.flush()
+                print(f"[LANGFUSE] Evaluation loggee: {score}/10")
+            except Exception as e:
+                print(f"[WARN] Erreur lors du logging Langfuse: {e}")
 
         return score, justification
 
