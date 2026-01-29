@@ -1,8 +1,11 @@
 # Documentation Projet - Système Multi-Agent TelecomPlus
 
-**Auteur :** Keita Mamadi
+**Auteurs :** Keita Mamadi et Skander Adam Afi
+
 **Formation :** M2 IASD - Université Paris Dauphine
+
 **Année :** 2025-2026
+
 **Date :** Décembre 2025
 
 ---
@@ -478,8 +481,10 @@ dauphine-project-iasd-2025/
 
 ## 📞 Contact
 
-**Keita Mamadi**
+**Keita Mamadi et Skander Adam Afi**
+
 M2 IASD - Université Paris Dauphine
+
 GitHub : https://github.com/keita223/dauphine-project-iasd-2025
 
 ---
