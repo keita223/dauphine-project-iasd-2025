@@ -1,8 +1,11 @@
 # Documentation Projet - Système Multi-Agent TelecomPlus
 
 **Auteurs :** Keita Mamadi et Skander Adam Afi
+
 **Formation :** M2 IASD - Université Paris Dauphine
+
 **Année :** 2025-2026
+
 **Date :** Décembre 2025
 
 ---
