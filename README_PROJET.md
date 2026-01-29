@@ -482,7 +482,9 @@ dauphine-project-iasd-2025/
 ## 📞 Contact
 
 **Keita Mamadi et Skander Adam Afi**
+
 M2 IASD - Université Paris Dauphine
+
 GitHub : https://github.com/keita223/dauphine-project-iasd-2025
 
 ---
